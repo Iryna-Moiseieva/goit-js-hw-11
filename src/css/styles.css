@@ -51,7 +51,7 @@ button {
   border: transparent solid 1px;
   border-radius: 5px;
   cursor: pointer;
-  background: center url('../img/search-3-24.png') no-repeat;
+  background: center url('../img/search-icon.png') no-repeat;
 }
 
 .button:hover {

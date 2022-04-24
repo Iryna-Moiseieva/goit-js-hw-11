@@ -1,98 +1,87 @@
-// import './css/styles.css';
-// import debounce from 'lodash.debounce';
-// import Notiflix from 'notiflix';
-// import { fetchCountries } from "./fetchCountries.js";
+import './css/styles.css';
+import markup from './js/markup';
+import FetchBildsAPI from './js/service-api';
 
-// const DEBOUNCE_DELAY = 300;
+import Notiflix from 'notiflix';
+import SimpleLightbox from 'simplelightbox';
+import 'simplelightbox/dist/simple-lightbox.min.css';
 
-// const refs =  {
-//         searchBox: document.querySelector("#search-box"),
-//         countryList: document.querySelector(".country-list"),
-//         countryInfo: document.querySelector(".country-info"),
-// };
+const refs = {
+    form: document.querySelector('.search-form'),
+    submitBtn: document.querySelector('button[type=submit]'),
+    gallery: document.querySelector('.gallery'),
+}
 
-// refs.searchBox.addEventListener('input', debounce(onSearch, DEBOUNCE_DELAY));
+refs.form.addEventListener('submit', onSubmitBtn);
 
-// function onSearch(event) {
-//     // метод preventDefault() запрещает странице перезагружаться во время введения запроса
-//     event.preventDefault();
-    
-//     // метод trim() выполняет санитизацию введенной строки (срезает пробелы по бокам при вводе текста)
-//     const inputText = refs.searchBox.value.trim();
-    
-//         if (inputText === '') {
-//             resetMarkup();
-//             return;
-//     }
-//         // вызывает функцию, которая делает запрос на back-end
-//         fetchCountries(inputText)
-//         // при успешном выполнении промиса -> выполняет функцию, котрая добавляет разметку
-//         .then(renderCountryCard)
-//         // в случае наличия ошибки -> вызывает функцию, которая показывает ошибку
-//         .catch(onFetchError);
-//     }
+const loadbildsApi = new FetchBildsAPI();
 
+let modalGallery = new SimpleLightbox('.gallery a', {
+    caption: true,
+    captionsData: 'alt',
+    captionPosition: 'bottom',
+    captionDelay: 250,
+});
 
-// function resetMarkup() {
-//     refs.countryList.innerHTML = '';
-//     refs.countryInfo.innerHTML = '';
-// }
+const callback = function (entries, observer) {
+  if (entries[0].isIntersecting) {
+    observer.unobserve(entries[0].target);
+    loadBilds();
+  }
+};
 
-// function renderCountryCard(data) {
-//     resetMarkup();
-    
-//     // если количество найденых стран больше 10 - показывает предупреждение
-//     if (data.length > 10) { 
-//         return Notiflix.Notify.info('Too many matches found. Please enter a more specific name.');      
-//         } 
-    
-//     // если количество найденых стран больше 1 и меньше 10 - создается разметка со списокм стран
-//     if (data.length > 1 && data.length <= 10) {
-//         refs.countryList.innerHTML = createMarkupList(data);
-//     }
+const observer = new IntersectionObserver(callback, {
+    root: null,
+    threshold: 1,
+});
 
-//     // если найдена 1 страна - создается разметка информации о стране
-//     if (data.length === 1) {
-//         refs.countryInfo.innerHTML = createMarkupCountryInfo(data[0]);
-//     }
-// }
+function onSubmitBtn(e) {
+  e.preventDefault();
+  
+  const inputText = e.currentTarget.elements.searchQuery.value;
 
-// function createMarkupList(data) {
-//     return data
-//     .map(({ name, flags }) => {
-//         return `
-//         <li class="country-list__item">
-//             <img class="country-list__img" src="${flags.svg}" alt="Flag of ${name.official}">
-//             <span>${name.official}</span>
-//         </li>
-//         `;
-//     })
-//     .join('');
-// }
+  if (!inputText.trim()) {
+    return Notiflix.Notify.warning('Oops, enter your request');
+  }
 
-// function createMarkupCountryInfo({ name, capital, population, flags, languages }) {
-//     return `
-//         <p>
-//             <img class="country-list__img" src="${flags.svg}" alt="Flag of ${name.official}">
-//             <span class="country-list__name">${name.official}</span>
-//         </p>
-//         <p>
-//             <span class="country-list__label">Capital: </span>
-//             ${capital}
-//         </p>
-//         <p>
-//             <span class="country-list__label">Population: </span>
-//             ${population}
-//         </p>
-//         <p>
-//             <span class="country-list__label">Languages: </span>
-//             ${Object.values(languages).join(', ')}
-//         </p>
-//         `;
-// }
+  if (inputText) {
+    loadbildsApi.searchQuery = inputText;
+    loadbildsApi.resetPage();
+    refs.gallery.innerHTML = '';
+    loadBilds();  
+  }
+}
 
+function loadBilds() {
+  loadbildsApi.getBilds()
+      .then(renderGallery)
+      .catch(error => {
+        console.log(error);
+      });
+}
 
-// function onFetchError(error) {
-//         resetMarkup();
-//         return Notiflix.Notify.failure('Oops, there is no country with that name');
-// }
+function renderGallery(data) {
+  if (data.data.totalHits === 0) {
+    return Notiflix.Notify.failure('Sorry, there are no images matching your search query. Please try again.');
+  }
+
+  if (data.data.totalHits !== 0 && data.data.hits.length === 0) {
+    return Notiflix.Notify.warning(`We're sorry, but you've reached the end of search results.`);
+  }
+
+  refs.gallery.insertAdjacentHTML('beforeend', markup(data.data.hits));
+
+  modalGallery.refresh();
+
+  if (loadbildsApi.pageNumber === 2) {
+    Notiflix.Notify.info(`Hooray! We found ${data.data.totalHits} images.`);
+  } else {
+    const { height: cardHeight } = refs.gallery.firstElementChild.getBoundingClientRect();
+    window.scrollBy({
+      top: cardHeight * 2 + 120,
+      behavior: 'smooth',
+    });
+  }
+
+  observer.observe(refs.gallery.lastElementChild);
+}
